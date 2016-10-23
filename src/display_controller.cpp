@@ -1,7 +1,7 @@
 #include "Arduino.h"
 #include "ArduinoJson.h"
 #include "Wire.h"
-#include "../main_controller/ConsoleSetup.h"
+#include "../../ksp_main_controller/src/ConsoleSetup.h"
 #include <SPI.h>
 #include "Ucglib.h"
 
@@ -14,6 +14,9 @@ volatile int read_buffer_offset = 0;
 int empty_buffer_size = 0;
 volatile bool have_handshake=false;
 volatile bool command_complete=false;
+
+void receiveEvent(int how_many);
+void reset_input_buffer();
 
 void setupLCD( Ucglib_ST7735_18x128x160_SWSPI &lcd) {
 	  lcd.begin(UCG_FONT_MODE_SOLID);
