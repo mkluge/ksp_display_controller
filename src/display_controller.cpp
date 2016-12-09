@@ -2,6 +2,7 @@
 #include "ArduinoJson.h"
 #include "Wire.h"
 #include "../../ksp_main_controller/src/ConsoleSetup.h"
+#include "../../ksp_main_controller/src/ksp_display_defines.h"
 #include <SPI.h>
 #include "Ucglib.h"
 
@@ -117,9 +118,21 @@ void receiveEvent(int how_many) {
 	}
 }
 
+signed int check_for_key( JsonArray &data, short key)
+{
+	for( unsigned int index=0; index<data.size(); index+=2)
+	{
+		if( data[index]==key )
+		{
+			return index;
+		}
+	}
+	return KEY_NOT_FOUND;
+}
+
 #define CHECK_DATA(KEY,LCD,LINE) \
-		if (rj.containsKey(KEY)) { \
-			print_lcd( LCD, LINE, (const char *) rj[KEY]); }
+		if ( (index=check_for_key( data, KEY))!=KEY_NOT_FOUND ) { \
+			print_lcd( LCD, LINE, (const char *) data[index+1]); }
 
 void work_on_command(JsonObject& rj) {
 	if (!rj.success()) {
@@ -141,12 +154,14 @@ void work_on_command(JsonObject& rj) {
 		}
 		else
 		{
-			CHECK_DATA( "ap", lcd_right, 1);
-			CHECK_DATA( "ap_t", lcd_right, 3);
-			CHECK_DATA( "pe", lcd_right, 5);
-			CHECK_DATA( "pe_t", lcd_right, 7);
-			CHECK_DATA( "surf_h", lcd_left, 1);
-			CHECK_DATA( "surf_t", lcd_left, 3);
+			JsonArray& data=rj["data"];
+			signed index;
+			CHECK_DATA( INFO_APOAPSIS, lcd_right, 1);
+			CHECK_DATA( INFO_APOAPSIS_TIME, lcd_right, 3);
+			CHECK_DATA( INFO_PERIAPSIS, lcd_right, 5);
+			CHECK_DATA( INFO_APOAPSIS_TIME, lcd_right, 7);
+			CHECK_DATA( INFO_SURFACE_HEIGHT, lcd_left, 1);
+			CHECK_DATA( INFO_SURFACE_TIME, lcd_left, 3);
 		}
 	}
 }
