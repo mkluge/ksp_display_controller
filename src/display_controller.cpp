@@ -9,7 +9,7 @@
 Ucglib_ST7735_18x128x160_SWSPI lcd_right( 1, 2, 3, 0, 4);
 Ucglib_ST7735_18x128x160_SWSPI lcd_left( 9, 10, 11, 8, 12);
 
-#define READ_BUFFER_SIZE 300
+#define READ_BUFFER_SIZE 200
 char read_buffer[READ_BUFFER_SIZE];
 volatile int read_buffer_offset = 0;
 int empty_buffer_size = 0;
@@ -42,7 +42,7 @@ void setup() {
 void print_lcd( Ucglib_ST7735_18x128x160_SWSPI &lcd, int line, const char *str) {
 	  lcd.setFont(ucg_font_9x15_mf);
 	  lcd.setPrintPos(1,20+line*18);
-	  char buf[20];
+	  char buf[20]="                   ";
 	  snprintf( buf, 15, "%13s", str);
 	  buf[14]=0;
 	  lcd.print(buf);
@@ -177,7 +177,7 @@ void loop() {
 			char mybuf[READ_BUFFER_SIZE];
 			memcpy( mybuf, read_buffer, READ_BUFFER_SIZE);
 			reset_input_buffer();
-			StaticJsonBuffer <READ_BUFFER_SIZE> sjb;
+			StaticJsonBuffer<READ_BUFFER_SIZE> sjb;
 			JsonObject& rj = sjb.parseObject(mybuf);
 			completed_commands++;
 			work_on_command(rj);
@@ -186,11 +186,11 @@ void loop() {
 		if( !have_handshake )
 		{
 			if (dot_on == true) {
-				print_lcd( lcd_left, 2, "  .");
-				print_lcd( lcd_right, 2, "   ");
+				print_lcd( lcd_left, 2, "   .");
+				print_lcd( lcd_right, 2, "    ");
 			} else {
-				print_lcd( lcd_right, 2, "  .");
-				print_lcd( lcd_left, 2, "   ");
+				print_lcd( lcd_right, 2, "   .");
+				print_lcd( lcd_left, 2, "    ");
 			}
 			dot_on = !dot_on;
 			delay(100);
