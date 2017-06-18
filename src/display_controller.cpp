@@ -24,8 +24,6 @@ void setupLCD( Ucglib_ST7735_18x128x160_SWSPI &lcd) {
 	  lcd.setRotate180();
 	  lcd.setColor(0, 255, 255, 255);
 	  lcd.setColor(1, 0, 0, 0);
-//	  lcd.setColor(2, 0, 120, 0);
-//	  lcd.setColor(3, 0, 120, 120);
 	  lcd.clearScreen();
 }
 
@@ -74,39 +72,17 @@ void dieError(int number) {
 // read the data into the buffer,
 // if the current input buffer is not full
 void receiveEvent(int how_many) {
-//	static int col=0;
-//	static int line=1;
-	// in case we already have a full command
-	// => dump
-/*	if( command_complete )
-	{
-		while( Wire.available()>0 )
-			Wire.read();
-		return;
-	}*/
 	while( Wire.available()>0 )
 	{
 		char inByte = Wire.read();
-//		if( inByte != '\n' )
-/*			print_lcd( lcd_right, line, col++, inByte);
-		    if (col>7)
-		    {
-		    	col=0;
-		    	line++;
-		    }*/
 		if ( inByte == '\n' )
 		{
 			command_complete = true;
-//			print_lcd( lcd_right, line, col++, read_buffer[0]);
-//			print_lcd( lcd_right, line, col++, '*');
-//			print_lcd( lcd_right, 5, read_buffer_offset);
-//			print_lcd( lcd_right, 6, read_buffer);
 			// dump if there is more one the wire
 			return;
 		}
 		// otherwise store the current byte
 		if (read_buffer_offset < READ_BUFFER_SIZE) {
-//			print_lcd( lcd_right, line, col++, '+');
 			read_buffer[read_buffer_offset] = inByte;
 			read_buffer_offset++;
 		} else {
