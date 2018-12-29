@@ -22,6 +22,7 @@ DisplayType lcd_right( 1, 2, 3, 0, 4);
 //DisplayType lcd_left( 9, 10, 11, 8, 12);
 
 #define dprint(X)	print_lcd( lcd_right, 7, X)
+#define cprint(X)	print_lcd( lcd_right, 5, X)
 #define ucg lcd_right
 
 #ifndef TEST
@@ -31,6 +32,7 @@ volatile int read_buffer_offset = 0;
 int empty_buffer_size = 0;
 volatile bool have_handshake=false;
 volatile bool command_complete=false;
+byte ready_to_receive = 0;
 
 #define BAR_FIRST_VERTICAL_OFFSET 5
 #define BAR_INNER_WIDTH 100
@@ -165,6 +167,11 @@ void setBarPercentage( DisplayType &lcd, int number, float percentage)
 }
 
 #ifndef TEST
+
+void requestEvent() {
+  Wire.write( ready_to_receive );
+}
+
 void setup() {
 
 	flightInfo.next = &landing;
@@ -173,7 +180,9 @@ void setup() {
 
 	reset_input_buffer();
 	Wire.onReceive(receiveEvent);
+	Wire.onRequest(requestEvent);
 	Wire.begin(DISPLAY_I2C_ADDRESS);
+	ready_to_receive = 1;
 }
 #endif
 
@@ -199,13 +208,6 @@ void print_lcd( DisplayType &lcd, int line, int number) {
 	print_lcd( lcd, line, buf);
 }
 
-void sendAck() {
-	char ack='\n';
-	Wire.beginTransmission(MAIN_CONTROLLER_I2C_ADDRESS);
-  Wire.write( &ack, 1);
-	Wire.endTransmission();
-}
-
 void reset_input_buffer() {
 	memset(read_buffer, 0, DISPLAY_WIRE_BUFFER_SIZE);
 	read_buffer_offset = 0;
@@ -220,7 +222,9 @@ void dieError(int number) {
 // read the data into the buffer,
 // if the current input buffer is not full
 void receiveEvent(int how_many) {
-	dprint(8);
+	// as soon as we receive, we tell the master that we will
+	// not accept additional messages until this one is done
+	ready_to_receive = 0;
 	if( command_complete == true )
 		return;
 	while( Wire.available()>0 )
@@ -287,17 +291,7 @@ void loop() {
 	dprint(0);
 	while( 1 )
 	{
-		idle_loops++;
-		if( idle_loops>20 )
-		{
-			Wire.begin(DISPLAY_I2C_ADDRESS);
-			idle_loops=0;
-		}
-		loop=Wire.available();
-		int add=0;
-		if( read_buffer_offset > 0 )
-			add=100;
-		dprint(add+loop);
+		cprint(read_buffer_offset);
 		if( loop==100 )
 			loop=80;
 		if( command_complete )
@@ -313,9 +307,7 @@ void loop() {
 				work_on_command(rj);
 			}
 			reset_input_buffer();
-			dprint(2);
-			sendAck();
-			dprint(34);
+			ready_to_receive = 1;
 		}
 		if( !have_handshake )
 		{
