@@ -6,10 +6,13 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
+//#include <Fonts/FreeMono9pt7b.h>
+//#include "UbuntuMono_Regular7pt7b.h"
+//#include "mikefont.h"
 
 // Screen dimensions
 #define SCREEN_WIDTH  128
-#define SCREEN_HEIGHT 128 // Change this to 96 for 1.27" OLED.
+#define SCREEN_HEIGHT 128
 
 // You can use any (4 or) 5 pins
 #define SCLK_PINr 3
@@ -107,16 +110,12 @@ void setupTFT( DisplayType &tft) {
 	tft.begin();
 	tft.setRotation(3);
 	tft.fillScreen(BLACK);
-	tft.setTextSize(2);
-
-//	  tft.begin(UCG_FONT_MODE_SOLID);
-//	  tft.setRotate180();
-	tft.setTextColor(WHITE);
-
-//	  tft.setColor(0, 255, 255, 255);
-//	  tft.setColor(1, 0, 0, 0);
-//		tft.setFont(ucg_font_9x15_mf);
-//	  tft.clearScreen();
+	tft.setTextSize(1);
+	// using fonts would be great, but one cannot have a custom font and
+	// the background erased -> so just stay with the current one
+//  tft.setFont(&FreeMono9pt7b);
+//	tft.setFont(&UbuntuMono_Regular7pt7b);
+	tft.setTextColor( WHITE, BLACK);
 }
 
 void initBar( DisplayType &tft, int number, const char *text)
@@ -207,6 +206,8 @@ void setup() {
 	flightInfo.next = &landing;
 	setupTFT( tft_right );
 	setupTFT( tft_left );
+	current_right_tft_mode->initFunc( tft_right );
+	current_left_tft_mode->initFunc( tft_left );
 
 	reset_input_buffer();
 	Wire.begin(DISPLAY_I2C_ADDRESS);
@@ -216,9 +217,9 @@ void setup() {
 
 void print_tft( DisplayType &tft, int line, const char *str) {
 //	  tft.setFont(ucg_font_9x15_mf);
-	  tft.setCursor(1,20+line*18);
+	  tft.setCursor(1,10+line*15);
 	  char buf[20]="                   ";
-	  snprintf( buf, 15, "%12s", str);
+	  snprintf( buf, 15, "%14s", str);
 	  buf[14]=0;
 	  tft.print(buf);
 }
@@ -226,7 +227,7 @@ void print_tft( DisplayType &tft, int line, const char *str) {
 void print_tft( DisplayType &tft, int line,
 		        int col, const char c) {
 //	  tft.setFont(ucg_font_helvR10_hr);
-	  tft.setCursor(1+10*col,20+line*15);
+	  tft.setCursor(1+10*col,10+line*15);
 	  tft.print(c);
 }
 
