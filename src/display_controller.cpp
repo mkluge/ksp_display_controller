@@ -84,7 +84,7 @@ volatile int read_buffer_offset = 0;
 int empty_buffer_size = 0;
 int idle_loops = 0;
 volatile bool command_complete = false;
-byte ready_to_receive = 0;
+byte ready_to_receive = 77;
 
 void receiveEvent(int how_many);
 void reset_input_buffer();
@@ -211,14 +211,13 @@ void setBarPercentage(DisplayType &tft, int number, float percentage)
 				 BAR_INNER_HEIGHT, BLACK);
 }
 
-void requestEvent()
+void ackReceive()
 {
 	Wire.write(ready_to_receive);
 }
 
 void setup()
 {
-
 	flightInfo.next = &landing;
 	setupTFT(tft_right);
 	setupTFT(tft_left);
@@ -228,7 +227,6 @@ void setup()
 	reset_input_buffer();
 	Wire.begin(DISPLAY_I2C_ADDRESS);
 	Wire.onReceive(receiveEvent);
-	ready_to_receive = 1;
 }
 
 void print_tft(DisplayType &tft, int line, const char *str)
@@ -260,7 +258,6 @@ void reset_input_buffer()
 	memset(read_buffer, 0, DISPLAY_WIRE_BUFFER_SIZE);
 	read_buffer_offset = 0;
 	command_complete = false;
-	//	Wire.onRequest(requestEvent);
 }
 
 void dieError(int number)
@@ -275,7 +272,6 @@ void receiveEvent(int how_many)
 {
 	// as soon as we receive, we tell the master that we will
 	// not accept additional messages until this one is done
-	ready_to_receive = 0;
 	if (command_complete == true)
 		return;
 	while (Wire.available() > 0)
@@ -360,7 +356,7 @@ void loop()
 				work_on_command(rj);
 			}
 			reset_input_buffer();
-			ready_to_receive = 1;
+			ackReceive();
 		}
 	}
 }
