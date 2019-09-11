@@ -3,6 +3,8 @@
 .gcc-flags.json
 /Release/*
 /Release/
+.pio/
+.vscode/
 .ino.cpp
 .settings/
 .piolibdeps
