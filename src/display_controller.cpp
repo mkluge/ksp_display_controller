@@ -119,6 +119,11 @@ TFTModeS *current_right_tft_mode = &flightInfo;
 TFTModeS fuel = {prepareFuelBar, updateFuelBar, &fuel};
 TFTModeS *current_left_tft_mode = &fuel;
 
+word ConvertRGB( byte R, byte G, byte B)
+{
+  return ( ((R & 0xF8) << 8) | ((G & 0xFC) << 3) | (B >> 3) );
+}
+
 void setupTFT(DisplayType &tft)
 {
 	tft.begin();
@@ -197,6 +202,8 @@ void setBarPercentage(DisplayType &tft, int number, float percentage)
 	int border_t = BAR_FIRST_VERTICAL_OFFSET + number * BAR_TOTAL_HEIGHT;
 	int border_l = BAR_LEFT_OFFSET;
 	int bar_width = (int)(BAR_INNER_WIDTH * percentage / 100.0);
+	int color_offset = 255 * percentage;
+	int color = ConvertRGB( 255, 255-color_offset, 255-color_offset);
 
 	// need to draw the color box as well as the black box
 	//	float other_brightness = percentage*255.0/100.0;
@@ -204,7 +211,7 @@ void setBarPercentage(DisplayType &tft, int number, float percentage)
 	tft.fillRect(border_l + BAR_BORDER_DISTANCE,
 				 border_t + BAR_BORDER_DISTANCE,
 				 bar_width,
-				 BAR_INNER_HEIGHT, WHITE);
+				 BAR_INNER_HEIGHT, color);
 	tft.fillRect(border_l + BAR_BORDER_DISTANCE + bar_width,
 				 border_t + BAR_BORDER_DISTANCE,
 				 BAR_INNER_WIDTH - bar_width,
