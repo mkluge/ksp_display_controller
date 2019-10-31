@@ -228,6 +228,7 @@ void setup()
 	flightInfo.next = &landing;
 	setupTFT(tft_right);
 	setupTFT(tft_left);
+	while(true) {};
 	current_right_tft_mode->initFunc(tft_right);
 	current_left_tft_mode->initFunc(tft_left);
 
