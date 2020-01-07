@@ -1,3 +1,9 @@
+#undef WIRE_TEST
+
+#ifdef WIRE_TEST
+#define TEST
+#endif
+
 #include "Arduino.h"
 #include <ArduinoJson.h>
 #include "Wire.h"
@@ -14,7 +20,7 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 128
 
-// You can use any (4 or) 5 pins
+// Display Pins
 #define SCLK_PINr 3
 #define MOSI_PINr 2
 #define DC_PINr 5
@@ -71,8 +77,10 @@
 		setBarPercentage(TFT, INDEX, atoi(data[index + 1])); \
 	}
 
-//DisplayType tft_left( 9, 10, 11, 8, 12);
-// Option 1: use any pins but a little slower
+namespace {
+
+#undef NO_RIGHT_DISPLAY
+#undef NO_LEFT_DISPLAY
 Adafruit_SSD1351 tft_right = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PINr, DC_PINr, MOSI_PINr, SCLK_PINr, RST_PINr);
 Adafruit_SSD1351 tft_left = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PINl, DC_PINl, MOSI_PINl, SCLK_PINl, RST_PINl);
 
@@ -80,14 +88,10 @@ Adafruit_SSD1351 tft_left = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN
 #define cprint(X) print_tft(tft_right, 5, X)
 
 char read_buffer[DISPLAY_WIRE_BUFFER_SIZE];
-volatile int read_buffer_offset = 0;
-int empty_buffer_size = 0;
-int idle_loops = 0;
-volatile bool command_complete = false;
-byte ready_to_receive = 77;
+bool command_complete = false;
+byte slave_ready = 1;
 
 void receiveEvent(int how_many);
-void reset_input_buffer();
 signed int check_for_key(const JsonArray &data, short key);
 
 void print_tft(DisplayType &tft, int line, const char *str);
@@ -218,23 +222,9 @@ void setBarPercentage(DisplayType &tft, int number, float percentage)
 				 BAR_INNER_HEIGHT, BLACK);
 }
 
-void ackReceive()
+void requestStatus()
 {
-	Wire.write(ready_to_receive);
-}
-
-void setup()
-{
-	flightInfo.next = &landing;
-	setupTFT(tft_right);
-	setupTFT(tft_left);
-	while(true) {};
-	current_right_tft_mode->initFunc(tft_right);
-	current_left_tft_mode->initFunc(tft_left);
-
-	reset_input_buffer();
-	Wire.begin(DISPLAY_I2C_ADDRESS);
-	Wire.onReceive(receiveEvent);
+	Wire.write(slave_ready);
 }
 
 void print_tft(DisplayType &tft, int line, const char *str)
@@ -257,15 +247,8 @@ void print_tft(DisplayType &tft, int line,
 void print_tft(DisplayType &tft, int line, int number)
 {
 	char buf[20];
-	sprintf(buf, "%d", number);
+	snprintf(buf, 15, "%d", number);
 	print_tft(tft, line, buf);
-}
-
-void reset_input_buffer()
-{
-	memset(read_buffer, 0, DISPLAY_WIRE_BUFFER_SIZE);
-	read_buffer_offset = 0;
-	command_complete = false;
 }
 
 void dieError(int number)
@@ -274,39 +257,71 @@ void dieError(int number)
 	print_tft(tft_right, 1, number);
 }
 
-// read the data into the buffer,
-// if the current input buffer is not full
-void receiveEvent(int how_many)
+void wire_read_until(char delimiter)
 {
-	// as soon as we receive, we tell the master that we will
-	// not accept additional messages until this one is done
-	if (command_complete == true)
-		return;
+	static int read_buffer_offset = 0;
+	int bytes_read = 0;
+	static int line=1;
+	static int col=0;
+	// at first call, clear the buffer
+	if( read_buffer_offset == 0 )
+	{
+		memset(read_buffer, 0, DISPLAY_WIRE_BUFFER_SIZE);
+	}
 	while (Wire.available() > 0)
 	{
-		dprint(11);
+		slave_ready = 0;
 		char inByte = Wire.read();
-		if (inByte == '\n')
+//		char buf[2]={ inByte, 0};
+		if( line!=7 ) 
 		{
-			dprint(9);
+//			print_tft( tft_left, line, col, inByte);
+//			print_tft( tft_right, 4, 3);
+			col++;
+			if( col==11)
+			{
+				col=0;
+				line++;
+			}
+		}
+		if (inByte == delimiter)
+		{
+			read_buffer[read_buffer_offset] = 0;
 			command_complete = true;
-			return;
+//			tft_left.fillScreen(BLACK);
+			col=0;
+			line=1;
+			read_buffer_offset=0;
+			// this should be the last byte on the line
+			if(Wire.available())
+				dieError(12);
+			break;
 		}
 		// otherwise store the current byte
 		if (read_buffer_offset < DISPLAY_WIRE_BUFFER_SIZE)
 		{
 			read_buffer[read_buffer_offset] = inByte;
 			read_buffer_offset++;
+			bytes_read++;
 		}
 		else
 		{
-			read_buffer[DISPLAY_WIRE_BUFFER_SIZE - 1] = 0;
 			dieError(4);
-			command_complete = true;
-			return;
 		}
 	}
 }
+
+#ifndef WIRE_TEST
+// read the data into the buffer,
+// if the current input buffer is not full
+void receiveEvent(int how_many)
+{
+	// as soon as we receive, we tell the master that we will
+	// not accept additional messages until this one is done
+//	dprint("event");
+	wire_read_until('\n');
+}
+#endif
 
 signed int check_for_key(const JsonArray &data, short key)
 {
@@ -324,11 +339,13 @@ void work_on_command(StaticJsonDocument<DISPLAY_WIRE_BUFFER_SIZE> &rj)
 {
 	if (rj.containsKey("chk"))
 	{
+#ifndef NO_LEFT_DISPLAY
 		current_left_tft_mode->initFunc(tft_left);
+#endif
 		current_right_tft_mode->initFunc(tft_right);
 		return;
 	}
-	if (rj.containsKey("data"))
+	else if (rj.containsKey("data"))
 	{
 		const JsonArray &data = rj["data"];
 		if (check_for_key(data, BUTTON_NEXT_LEFT_TFT_MODE) != KEY_NOT_FOUND)
@@ -337,34 +354,101 @@ void work_on_command(StaticJsonDocument<DISPLAY_WIRE_BUFFER_SIZE> &rj)
 			current_right_tft_mode->initFunc(tft_right);
 		}
 		current_right_tft_mode->updateFunc(tft_right, data);
+#ifndef NO_LEFT_DISPLAY
 		current_left_tft_mode->updateFunc(tft_left, data);
+#endif
 	}
+	else
+	{
+		cprint("wrong command");
+	}
+	
+}
+
+}
+
+#ifndef TEST
+
+void setup()
+{
+	Wire.begin(DISPLAY_I2C_ADDRESS);
+	Wire.onReceive(receiveEvent);
+	Wire.onRequest(requestStatus);
+
+	flightInfo.next = &landing;
+	setupTFT(tft_right);
+	setupTFT(tft_left);
+	current_right_tft_mode->initFunc(tft_right);
+	current_left_tft_mode->initFunc(tft_left);
 }
 
 void loop()
 {
 	static int completed_commands = 0;
-
-	while (1)
+#//		cprint(read_buffer_offset);
+	if (command_complete)
 	{
-		dprint(idle_loops++);
-		cprint(read_buffer_offset);
-		if (command_complete)
+		StaticJsonDocument<DISPLAY_WIRE_BUFFER_SIZE> rj;
+		DeserializationError error = deserializeJson(rj, read_buffer);
+		if (error)
 		{
-			idle_loops = 0;
-			StaticJsonDocument<DISPLAY_WIRE_BUFFER_SIZE> rj;
-			DeserializationError error = deserializeJson(rj, read_buffer);
-			if (error)
-			{
-				dieError(2);
-			}
-			else
-			{
-				completed_commands++;
-				work_on_command(rj);
-			}
-			reset_input_buffer();
-			ackReceive();
+			dieError(2);
+		}
+		else
+		{
+			completed_commands++;
+			work_on_command(rj);
+			slave_ready=1;
 		}
 	}
 }
+
+#endif
+
+#ifdef WIRE_TEST
+
+void testReceiveEvent(int how_many)
+{
+	wire_read_until('+');
+}
+
+void setup()
+{
+	Wire.begin(DISPLAY_I2C_ADDRESS);
+	Wire.setTimeout(30000);
+	Wire.onReceive(testReceiveEvent);
+	Wire.onRequest(requestStatus);
+
+	flightInfo.next = &landing;
+	setupTFT(tft_right);
+#ifndef NO_LEFT_DISPLAY
+	setupTFT(tft_left);
+#endif
+}
+
+void loop()
+{
+	// wait for data
+	// if complete, print it
+	static int idle_loops=0;
+	static int completed=0;
+	static int ack_ed=0;
+	char s[10];
+	sprintf(s, "%d", idle_loops++);
+	print_tft( tft_right, 3, s);
+
+	if (command_complete)
+	{
+		char mb[20];
+		completed++;
+		sprintf( mb, "OK: %d", completed);
+		dprint(read_buffer);
+		print_tft( tft_right, 0, read_buffer);
+		print_tft( tft_right, 2, mb);
+		idle_loops=0;
+		command_complete = false;
+		slave_ready=1;
+	}
+}
+
+#endif
