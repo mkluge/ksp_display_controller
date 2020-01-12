@@ -13,8 +13,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
 //#include <Fonts/FreeMono9pt7b.h>
+#include <Fonts/FreeSans9pt7b.h>
 //#include "UbuntuMono_Regular7pt7b.h"
-//#include "mikefont.h"
+#include "mikefont.h"
 
 // Screen dimensions
 #define SCREEN_WIDTH 128
@@ -46,10 +47,27 @@
 // definitions for text layout
 #define LEFT_OFFSET 1
 #define CHAR_WIDTH 10
-#define FIRST_LINE_OFFSET 10
-#define LINE_HEIGHT 15
+#define FIRST_LINE_OFFSET 24
+#define LINE_HEIGHT 32 // 128/4
 
 // definitions for the fuel bars
+// text is left of the bars
+#define BAR_LEFT_OFFSET 30			// offset for the bars from the left
+#define BAR_FIRST_VERTICAL_OFFSET 0 // offset of the first bar from the top
+#define BAR_TOTAL_WIDTH (128-BAR_LEFT_OFFSET) // width of the inner bar
+#define BAR_TOTAL_HEIGHT (32) // 128/4
+#define BAR_BORDER_DISTANCE 2		// the distance between the inner bar and the outer rect
+#define BAR_BORDER_RADIUS 2			// the radius for the round rects
+#define BAR_BORDER_HEIGHT (BAR_TOTAL_HEIGHT - 1)
+#define BAR_BORDER_WIDTH BAR_TOTAL_WIDTH
+#define BAR_INNER_HEIGHT (BAR_TOTAL_HEIGHT - 2 * BAR_BORDER_DISTANCE) // height of the inner bar
+#define BAR_INNER_WIDTH (BAR_BORDER_WIDTH - 2 * BAR_BORDER_DISTANCE)
+#define BAR_TEXTV_ADD BAR_TOTAL_HEIGHT	// the reserved height below the bar for the text
+#define BAR_TEXTV_OFFSET -12			// where to set the cursor below the bar for printing
+#define BAR_TEXTH_OFFSET -1
+
+// definitions for the fuel bars
+/* this one was with text below the bar
 #define BAR_LEFT_OFFSET 0			// offset for the bars from the left
 #define BAR_FIRST_VERTICAL_OFFSET 0 // offset of the first bar from the top
 #define BAR_INNER_WIDTH 100			// width of the inner bar
@@ -60,21 +78,24 @@
 #define BAR_TEXTV_OFFSET 7			// where to set the cursor below the bar for printing
 #define BAR_BORDER_HEIGHT (BAR_INNER_HEIGHT + 2 * BAR_BORDER_DISTANCE)
 #define BAR_TOTAL_HEIGHT (BAR_TEXTV_ADD + BAR_BORDER_HEIGHT)
-#define BAR_TOTAL_WIDTH (BAR_INNER_WIDTH + 2 * BAR_BORDER_DISTANCE)
+#define BAR_BORDER_WIDTH (BAR_INNER_WIDTH + 2 * BAR_BORDER_DISTANCE)
+*/
 
 // the type of display attached (the C++ class name)
 #define DisplayType Adafruit_SSD1351
 
-#define CHECK_DATA(KEY, TFT, LINE)                           \
+#define CHECK_DATA(KEY, TFT, LINE, TEXT)                           \
 	if ((index = check_for_key(data, KEY)) != KEY_NOT_FOUND) \
 	{                                                        \
-		print_tft(TFT, LINE, (const char *)data[index + 1]); \
+		char tmp[30];                                        \
+		sprintf(tmp, "%s: %s", TEXT, (const char *)data[index + 1]); \
+		print_tft(TFT, LINE, tmp); \
 	}
 
 #define CHECK_BAR(KEY, TFT, INDEX)                           \
 	if ((index = check_for_key(data, KEY)) != KEY_NOT_FOUND) \
 	{                                                        \
-		setBarPercentage(TFT, INDEX, atoi(data[index + 1])); \
+		setBarPercentage(TFT, INDEX, data[index + 1]); \
 	}
 
 namespace {
@@ -107,7 +128,7 @@ void updateFuelBar(DisplayType &tft, const JsonArray &data);
 void prepareLanding(DisplayType &tft);
 void updateLanding(DisplayType &tft, const JsonArray &data);
 
-void setBarPercentage(DisplayType &tft, int number, float percentage);
+void setBarPercentage(DisplayType &tft, int number, int percentage);
 
 typedef struct TFTMode
 {
@@ -136,8 +157,7 @@ void setupTFT(DisplayType &tft)
 	tft.setTextSize(1);
 	// using fonts would be great, but one cannot have a custom font and
 	// the background erased -> so just stay with the current one
-	//  tft.setFont(&FreeMono9pt7b);
-	//	tft.setFont(&UbuntuMono_Regular7pt7b);
+	tft.setFont(&FreeSans9pt7b);
 	tft.setTextColor(WHITE, BLACK);
 }
 
@@ -146,50 +166,45 @@ void initBar(DisplayType &tft, int number, const char *text)
 	int border_t = BAR_FIRST_VERTICAL_OFFSET + number * BAR_TOTAL_HEIGHT;
 	int border_l = BAR_LEFT_OFFSET;
 
-	tft.drawRoundRect(border_l, border_t, BAR_TOTAL_WIDTH, BAR_TOTAL_HEIGHT, BAR_BORDER_RADIUS, WHITE);
-	tft.setCursor(border_l + BAR_BORDER_DISTANCE, border_t + BAR_TOTAL_HEIGHT + BAR_TEXTV_OFFSET);
+	tft.drawRoundRect(border_l, border_t, BAR_BORDER_WIDTH, BAR_BORDER_HEIGHT, BAR_BORDER_RADIUS, WHITE);
+	tft.setCursor( 0 + BAR_TEXTH_OFFSET, border_t + BAR_TOTAL_HEIGHT + BAR_TEXTV_OFFSET);
 	tft.print(text);
 }
 
 void prepareFlightInfo(DisplayType &tft)
 {
 	tft.fillScreen(BLACK);
-	print_tft(tft, 0, "Apoapsis");
-	print_tft(tft, 2, "time to AP");
-	print_tft(tft, 4, "Periapsis");
-	print_tft(tft, 6, "time to PE");
 }
 
 void updateFlightInfo(DisplayType &tft, const JsonArray &data)
 {
+	tft.fillScreen(BLACK);
 	signed index = KEY_NOT_FOUND;
-	CHECK_DATA(INFO_APOAPSIS, tft, 1);
-	CHECK_DATA(INFO_APOAPSIS_TIME, tft, 3);
-	CHECK_DATA(INFO_PERIAPSIS, tft, 5);
-	CHECK_DATA(INFO_APOAPSIS_TIME, tft, 7);
+	CHECK_DATA(INFO_APOAPSIS, tft, 0, "AP");
+	CHECK_DATA(INFO_APOAPSIS_TIME, tft, 1, "TA");
+	CHECK_DATA(INFO_PERIAPSIS, tft, 2, "PE");
+	CHECK_DATA(INFO_APOAPSIS_TIME, tft, 3, "TE");
 }
 
 void prepareLanding(DisplayType &tft)
 {
 	tft.fillScreen(BLACK);
-	print_tft(tft, 0, "Surf. Height");
-	print_tft(tft, 2, "Surf. Time");
 }
 
 void updateLanding(DisplayType &tft, const JsonArray &data)
 {
 	signed index = KEY_NOT_FOUND;
-	CHECK_DATA(INFO_SURFACE_HEIGHT, tft, 1);
-	CHECK_DATA(INFO_SURFACE_TIME, tft, 3);
+	CHECK_DATA(INFO_SURFACE_HEIGHT, tft, 1, "T");
+	CHECK_DATA(INFO_SURFACE_TIME, tft, 3,"H");
 }
 
 void prepareFuelBar(DisplayType &tft)
 {
 	tft.fillScreen(BLACK);
-	initBar(tft, 0, "Liquid Fuel");
-	initBar(tft, 1, "Oxygen");
-	initBar(tft, 2, "RCS Fuel");
-	initBar(tft, 3, "Battery");
+	initBar(tft, 0, "LF");
+	initBar(tft, 1, "OX");
+	initBar(tft, 2, "RC");
+	initBar(tft, 3, "BA");
 }
 
 void updateFuelBar(DisplayType &tft, const JsonArray &data)
@@ -201,13 +216,13 @@ void updateFuelBar(DisplayType &tft, const JsonArray &data)
 	CHECK_BAR(INFO_PERCENTAGE_BATTERY, tft, 3);
 }
 
-void setBarPercentage(DisplayType &tft, int number, float percentage)
+void setBarPercentage(DisplayType &tft, int number, int percentage)
 {
 	int border_t = BAR_FIRST_VERTICAL_OFFSET + number * BAR_TOTAL_HEIGHT;
 	int border_l = BAR_LEFT_OFFSET;
 	int bar_width = (int)(BAR_INNER_WIDTH * percentage / 100.0);
-	int color_offset = 255 * percentage;
-	int color = ConvertRGB( 255, 255-color_offset, 255-color_offset);
+	int color_offset = (255 * percentage) / 100;
+	int color = ConvertRGB( 255-color_offset, color_offset, 0);
 
 	// need to draw the color box as well as the black box
 	//	float other_brightness = percentage*255.0/100.0;
@@ -385,9 +400,14 @@ void setup()
 void loop()
 {
 	static int completed_commands = 0;
-#//		cprint(read_buffer_offset);
 	if (command_complete)
 	{
+/*		char tmp[6];
+		tft_right.fillScreen(BLACK);
+		sprintf(tmp,"%d",strlen(read_buffer));
+		print_tft( tft_right, 6, tmp);
+		print_tft( tft_right, 7, read_buffer);
+*/
 		StaticJsonDocument<DISPLAY_WIRE_BUFFER_SIZE> rj;
 		DeserializationError error = deserializeJson(rj, read_buffer);
 		if (error)
@@ -398,7 +418,12 @@ void loop()
 		{
 			completed_commands++;
 			work_on_command(rj);
+			command_complete = false;
 			slave_ready=1;
+//			char tmp[6];
+//			tft_right.fillScreen(BLACK);
+//			sprintf(tmp,"%d",completed_commands);
+//			print_tft( tft_right, 6, tmp);
 		}
 	}
 }
